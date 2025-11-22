@@ -37,6 +37,13 @@ function getTranslationService(): TranslationService {
  */
 function getUserService(): UserService {
   if (!userService) {
+    const configService = new ConfigService();
+    configService.load();
+
+    if (!configService.get('setupCompleted')) {
+      throw new Error('Application setup not completed');
+    }
+
     const secretsService = new SecretsService();
     const slackClient = createSlackClient(secretsService);
     userService = new UserService(slackClient);
@@ -251,88 +258,92 @@ router.get('/users', adminMiddleware, async (_req: Request, res: Response): Prom
  * Update user role or admin status
  * Admin-only endpoint
  */
-router.put('/users/:userId', adminMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { userId } = req.params;
-    // TypeScript type guard for userId
-    if (!userId) {
-      res.status(400).json({ success: false, error: 'User ID is required' });
-      return;
-    }
-    const { role, isAdmin } = req.body;
+router.put(
+  '/users/:userId',
+  adminMiddleware,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      // TypeScript type guard for userId
+      if (!userId) {
+        res.status(400).json({ success: false, error: 'User ID is required' });
+        return;
+      }
+      const { role, isAdmin } = req.body;
 
-    console.log(`[AdminRoutes] Updating user: ${userId}`);
+      console.log(`[AdminRoutes] Updating user: ${userId}`);
 
-    // Use Prisma directly to avoid Slack client dependency
-    const prisma = getPrismaClient();
+      // Use Prisma directly to avoid Slack client dependency
+      const prisma = getPrismaClient();
 
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!existingUser) {
-      res.status(404).json({
-        success: false,
-        error: 'User not found',
+      // Check if user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { id: userId },
       });
-      return;
-    }
 
-    // Build updates object
-    const updates: any = {};
-    if (role !== undefined) {
-      updates.role = role;
-    }
-    if (isAdmin !== undefined) {
-      updates.isAdmin = isAdmin;
-    }
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          error: 'User not found',
+        });
+        return;
+      }
 
-    if (Object.keys(updates).length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'No valid updates provided',
+      // Build updates object
+      const updates: any = {};
+      if (role !== undefined) {
+        updates.role = role;
+      }
+      if (isAdmin !== undefined) {
+        updates.isAdmin = isAdmin;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        res.status(400).json({
+          success: false,
+          error: 'No valid updates provided',
+        });
+        return;
+      }
+
+      // Update user
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: updates,
       });
-      return;
-    }
 
-    // Update user
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updates,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'User updated successfully',
-      user: {
-        id: updatedUser.id,
-        slackUserId: updatedUser.slackUserId,
-        role: updatedUser.role,
-        language: updatedUser.language,
-        isAdmin: updatedUser.isAdmin,
-        updatedAt: updatedUser.updatedAt,
-      },
-    });
-  } catch (error) {
-    console.error('[AdminRoutes] Error updating user:', error);
-
-    if (error instanceof Error && error.message.includes('not found')) {
-      res.status(404).json({
-        success: false,
-        error: 'User not found',
-        message: error.message,
+      res.status(200).json({
+        success: true,
+        message: 'User updated successfully',
+        user: {
+          id: updatedUser.id,
+          slackUserId: updatedUser.slackUserId,
+          role: updatedUser.role,
+          language: updatedUser.language,
+          isAdmin: updatedUser.isAdmin,
+          updatedAt: updatedUser.updatedAt,
+        },
       });
-      return;
-    }
+    } catch (error) {
+      console.error('[AdminRoutes] Error updating user:', error);
 
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update user',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+      if (error instanceof Error && error.message.includes('not found')) {
+        res.status(404).json({
+          success: false,
+          error: 'User not found',
+          message: error.message,
+        });
+        return;
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update user',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
-});
+);
 
 /**
  * Usage query parameters schema

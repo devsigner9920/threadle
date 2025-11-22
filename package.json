@@ -20,12 +20,11 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npm run build:server && npm run build:client && npm run build:prisma",
+    "build": "npm run build:prisma && npm run build:server && npm run build:client",
     "build:server": "tsc",
     "build:client": "cd client && npm run build && cd ..",
     "build:prisma": "prisma generate",
-    "prepublishOnly": "npm run prepublish",
-    "prepublish": "npm run build && npm test",
+    "prepublishOnly": "npm run build && npm test",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",
@@ -76,7 +75,7 @@
     "@playwright/test": "^1.56.1",
     "@prisma/adapter-libsql": "^7.0.0",
     "@prisma/client": "^7.0.0",
-    "@types/express": "^4.17.21",
+    "@types/express": "^5.0.0",
     "@types/jest": "^29.5.12",
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.11.24",
